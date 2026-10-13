@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 API_TOKEN = '8708079718:AAGWdfzl0cZRUweZsy_Mt891Up2_BwLT61o'
 CHANNEL_ID = '-1003707490949'      # ID របស់ Private Channel VIP របស់អ្នក
 ADMIN_GROUP_ID = '-1003904405834'  # ID របស់ Admin Group សម្រាប់ទទួលបង្កាន់ដៃ
-ADMIN_CONTACT = "https://t.me/munnyneak_movie?direct"
+ADMIN_CONTACT = "https://t.me/munnyneak_movie?direct"[cite: 9]
 
 bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
@@ -42,6 +42,13 @@ def init_db():
             plan_name TEXT
         )
     ''')
+    # Table សម្រាប់រក្សាទុកកញ្ចប់ដែលអតិថិជនបានជ្រើសរើសបណ្តោះអាសន្ន
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS pending_plans (
+            user_id INTEGER PRIMARY KEY,
+            plan_name TEXT
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -58,8 +65,20 @@ def add_subscription_custom(user_id: int, username: str, full_name: str, delta: 
     conn.commit()
     conn.close()
 
-def add_subscription(user_id: int, username: str, full_name: str, days: int, plan_name: str):
-    add_subscription_custom(user_id, username, full_name, timedelta(days=days), plan_name)
+def set_pending_plan(user_id: int, plan_name: str):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('INSERT OR REPLACE INTO pending_plans (user_id, plan_name) VALUES (?, ?)', (user_id, plan_name))
+    conn.commit()
+    conn.close()
+
+def get_pending_plan(user_id: int) -> str:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('SELECT plan_name FROM pending_plans WHERE user_id = ?', (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else "មិនបានបញ្ជាក់កញ្ចប់"
 
 # --- BOT HANDLERS ---
 @dp.message(Command("start", "verify"))
@@ -224,6 +243,9 @@ async def callback_select_plan(callback: types.CallbackQuery):
     await callback.answer()
 
 async def show_qr_for_plan(callback: types.CallbackQuery, plan_name: str, price: str, qr_filename: str = QR_PATH):
+    # កត់ត្រាទុកក្នុង Database ថា User កំពុងជ្រើសរើសកញ្ចប់មួយនេះ
+    set_pending_plan(callback.from_user.id, plan_name)
+
     caption_text = (
         f"💳 <b>អ្នកបានជ្រើសរើស: {plan_name} (តម្លៃ: {price})</b>\n\n"
         "1. សូមស្កេន QR Code ខាងលើដើម្បីទូទាត់ប្រាក់\n"
@@ -249,15 +271,15 @@ async def show_qr_for_plan(callback: types.CallbackQuery, plan_name: str, price:
 
 @dp.callback_query(F.data == "plan_1m")
 async def plan_1(callback: types.CallbackQuery):
-    await show_qr_for_plan(callback, "កញ្ចប់ ១ ខែ", "$2", "qr_1m.jpg")
+    await show_qr_for_plan(callback, "កញ្ចប់ ១ ខែ ($2)", "$2", "qr_1m.jpg")
 
 @dp.callback_query(F.data == "plan_2m")
 async def plan_2(callback: types.CallbackQuery):
-    await show_qr_for_plan(callback, "កញ្ចប់ ២ ខែ", "$3", "qr_2m.jpg")
+    await show_qr_for_plan(callback, "កញ្ចប់ ២ ខែ ($3)", "$3", "qr_2m.jpg")
 
 @dp.callback_query(F.data == "plan_3m")
 async def plan_3(callback: types.CallbackQuery):
-    await show_qr_for_plan(callback, "កញ្ចប់ ៣ ខែ", "$5", "qr_3m.jpg")
+    await show_qr_for_plan(callback, "កញ្ចប់ ៣ ខែ ($5)", "$5", "qr_3m.jpg")
 
 @dp.callback_query(F.data == "back_start")
 async def callback_back(callback: types.CallbackQuery):
@@ -292,6 +314,9 @@ async def handle_receipt(message: types.Message):
     username = message.from_user.username
     username_display = f"@{username}" if username else "គ្មាន Username"
     
+    # ទាញយកឈ្មោះកញ្ចប់ដែលអតិថិជនបានជ្រើសរើសទុកមុននេះ
+    selected_plan = get_pending_plan(user_id)
+    
     builder = InlineKeyboardBuilder()
     builder.button(text="⏱️ អនុម័ត ១ ម៉ោង", callback_data=f"approve_h_{user_id}_1")
     builder.button(text="⏱️ អនុម័ត ៣ ម៉ោង", callback_data=f"approve_h_{user_id}_3")
@@ -315,6 +340,7 @@ async def handle_receipt(message: types.Message):
                     f"👤 ឈ្មោះ: <a href=\"tg://user?id={user_id}\">{user_full_name}</a>\n"
                     f"🔗 Username: {username_display}\n"
                     f"🆔 User ID: <code>{user_id}</code>\n"
+                    f"📦 <b>កញ្ចប់ស្នើសុំ: {selected_plan}</b>\n"
                     f"────────────────────────\n"
                     f"សូមពិនិត្យបង្កាន់ដៃ និងជ្រើសរើសកញ្ចប់/ម៉ោងដើម្បីអនុម័ត៖",
             reply_markup=builder.as_markup()
@@ -452,7 +478,7 @@ async def main():
     scheduler.add_job(check_subscriptions_expiry, "interval", minutes=15)
     scheduler.start()
     
-    logging.info("Bot with Free Trial (2 Weeks) is starting...")
+    logging.info("Bot with Selected Plan tracking is starting...")
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
