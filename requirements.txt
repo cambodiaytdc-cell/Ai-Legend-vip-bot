@@ -1,2 +1,4 @@
+setuptools
+wheel
 aiogram==3.13.1
 apscheduler==3.10.4
