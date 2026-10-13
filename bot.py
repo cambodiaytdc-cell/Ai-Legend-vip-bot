@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 API_TOKEN = '8708079718:AAGWdfzl0cZRUweZsy_Mt891Up2_BwLT61o'
 CHANNEL_ID = '-1003707490949'      # ID របស់ Private Channel VIP របស់អ្នក
 ADMIN_GROUP_ID = '-1003904405834'  # ID របស់ Admin Group សម្រាប់ទទួលបង្កាន់ដៃ
-ADMIN_CONTACT = "https://web.telegram.org/a/#-2074401982012"
+ADMIN_CONTACT = "https://t.me/munnyneak_movie"
 
 bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
@@ -121,7 +121,7 @@ async def process_free_trial(callback: types.CallbackQuery):
             f"👤 ឈ្មោះ: <b>{user_full_name}</b>\n"
             f"📦 ប្រភេទ: <b>{plan_name}</b>\n"
             f"⏳ ថ្ងៃផុតកំណត់: <code>{expiry_date}</code>\n\n"
-            f"គណនីរបស់អ្នកត្រូវបានកត់ត្រាទុកក្នុងប្រព័ន្ធเรียบร้อยហើយ។ សូមរីករាយទស្សនាកម្សាន្ត!",
+            f"គណនីរបស់អ្នកត្រូវបានកត់ត្រាទុកក្នុងប្រព័ន្ធហើយ។ សូមរីករាយទស្សនាកម្សាន្ត!",
             reply_markup=builder.as_markup()
         )
     except Exception as e:
