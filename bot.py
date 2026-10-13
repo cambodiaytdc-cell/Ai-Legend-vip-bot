@@ -62,23 +62,113 @@ def add_subscription(user_id: int, username: str, full_name: str, days: int, pla
     add_subscription_custom(user_id, username, full_name, timedelta(days=days), plan_name)
 
 # --- BOT HANDLERS ---
-@dp.message(Command("start"))
+@dp.message(Command("start", "verify"))
 async def cmd_start(message: types.Message):
     user_name = message.from_user.full_name or "អតិថិជន"
     
     builder = InlineKeyboardBuilder()
+    builder.button(text="🎁 ទទួលសាកល្បងឥតគិតថ្លៃ ២សប្តាហ៍", callback_data="claim_free_trial")
     builder.button(text="ℹ️ អំពីពួកយើង", callback_data="about_us")
     builder.button(text="💎 ជ្រើសរើសកញ្ចប់ VIP (Pricing)", callback_data="select_plan")
     builder.button(text="📞 ទំនាក់ទំនងផ្ទាល់", url=ADMIN_CONTACT)
     builder.adjust(1)
     
     text = (
-        f"👋 សូមស្វាគមន៍ <b>{user_name}</b>!\n\n"
+        f"👋 សូមស្វាគមន៍ <b>{user_name}</b> មកកាន់ប្រព័ន្ធ VIP របស់យើង!\n\n"
         f"🌟 <b>Ai Legend VIP</b>\n"
         f"────────────────────────\n"
-        f"សូមជ្រើសរើសមុខងារដែលអ្នកចង់ប្រើ៖"
+        f"🎁 <b>ពិសេស!</b> សម្រាប់សមាជិកចាស់និងថ្មី អាចចុចទទួលសិទ្ធិសាកល្បងមើលរឿងដោយឥតគិតថ្លៃរយៈពេល <b>២សប្តាហ៍ (១៤ថ្ងៃ)</b> ភ្លាមៗនៅខាងក្រោម៖"
     )
     await message.answer(text, reply_markup=builder.as_markup())
+
+# --- មុខងារសម្រាប់សមាជិកចុចទទួល Free Trial ២សប្តាហ៍ ---
+@dp.callback_query(F.data == "claim_free_trial")
+async def process_free_trial(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    user_full_name = callback.from_user.full_name or "សមាជិក"
+    username = callback.from_user.username or ""
+    
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT expiry_date, plan_name FROM subscriptions WHERE user_id = ?", (user_id,))
+    existing = cursor.fetchone()
+    
+    if existing:
+        await callback.answer("⚠️ អ្នកបានចុះឈ្មោះ ឬទទួលបានកញ្ចប់សមាជិកក្នុងប្រព័ន្ធរួចរាល់ហើយ!", show_alert=True)
+        conn.close()
+        return
+
+    try:
+        chat_member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
+        if chat_member.status in ["left", "kicked"]:
+            await callback.answer("❌ អ្នកត្រូវតែជាសមាជិកក្នុង Channel VIP មុនទើបអាចទទួលបានសិទ្ធិ!", show_alert=True)
+            conn.close()
+            return
+            
+        delta = timedelta(days=14)
+        plan_name = "សាកល្បងឥតគិតថ្លៃ (Free 2 Weeks)"
+        
+        add_subscription_custom(user_id, username, user_full_name, delta=delta, plan_name=plan_name)
+        expiry_date = (datetime.now() + delta).strftime("%d/%m/%Y %H:%M")
+        
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🎬 ចូលទៅកាន់ Channel VIP", url=f"https://t.me/{CHANNEL_ID.replace('-100', '')}")
+        builder.adjust(1)
+        
+        await callback.message.edit_text(
+            f"🎉 <b>អបអរសាទរ! អ្នកទទួលបានសិទ្ធិសាកល្បង VIP ដោយឥតគិតថ្លៃ ២សប្តាហ៍ជោគជ័យ!</b>\n\n"
+            f"👤 ឈ្មោះ: <b>{user_full_name}</b>\n"
+            f"📦 ប្រភេទ: <b>{plan_name}</b>\n"
+            f"⏳ ថ្ងៃផុតកំណត់: <code>{expiry_date}</code>\n\n"
+            f"គណនីរបស់អ្នកត្រូវបានកត់ត្រាទុកក្នុងប្រព័ន្ធเรียบร้อยហើយ។ សូមរីករាយទស្សនាកម្សាន្ត!",
+            reply_markup=builder.as_markup()
+        )
+    except Exception as e:
+        logging.error(f"Error in claim_free_trial: {e}")
+        await callback.answer("⚠️ មានបញ្ហាក្នុងការផ្ទៀងផ្ទាត់ សូមព្យាយាមម្តងទៀត។", show_alert=True)
+    finally:
+        conn.close()
+
+# --- ADMIN COMMAND: បន្ថែមសមាជិកចាស់ដោយដៃ (/addsub user_id days plan_name) ---
+@dp.message(Command("addsub"))
+async def cmd_add_subscription(message: types.Message):
+    args = message.text.split()
+    if len(args) < 3:
+        await message.reply(
+            "⚠️ <b>ទ្រង់ទ្រាយពាក្យបញ្ជាមិនត្រឹមត្រូវ!</b>\n"
+            "សូមប្រើប្រាស់: <code>/addsub [user_id] [ចំនួនថ្ងៃ] [ឈ្មោះកញ្ចប់]</code>\n"
+            "ឧទាហរណ៍: <code>/addsub 123456789 30 កញ្ចប់១ខែ</code>"
+        )
+        return
+
+    try:
+        target_user_id = int(args[1])
+        days = int(args[2])
+        plan_name = " ".join(args[3:]) if len(args) > 3 else f"{days} ថ្ងៃ"
+
+        delta = timedelta(days=days)
+        
+        try:
+            chat_member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=target_user_id)
+            full_name = chat_member.user.full_name or "សមាជិកចាស់"
+            username = chat_member.user.username or ""
+        except Exception:
+            full_name = "សមាជិកចាស់"
+            username = ""
+
+        add_subscription_custom(target_user_id, username, full_name, delta=delta, plan_name=plan_name)
+        
+        expiry_date = (datetime.now() + delta).strftime("%d/%m/%Y %H:%M")
+        
+        await message.reply(
+            f"✅ <b>បានបន្ថែមសមាជិកជោគជ័យ!</b>\n\n"
+            f"🆔 User ID: <code>{target_user_id}</code>\n"
+            f"📦 កញ្ចប់: <b>{plan_name}</b>\n"
+            f"⏳ ផុតកំណត់ថ្ងៃ: <code>{expiry_date}</code>"
+        )
+    except Exception as e:
+        await message.reply(f"❌ មានកំហុសឆ្គង: {e}")
 
 @dp.callback_query(F.data == "about_us")
 async def callback_about(callback: types.CallbackQuery):
@@ -106,7 +196,6 @@ async def callback_about(callback: types.CallbackQuery):
         await callback.message.answer(about_text, reply_markup=builder.as_markup())
     await callback.answer()
 
-# បង្ហាញកញ្ចប់ទាំង ៣ ឱ្យអតិថិជនជ្រើសរើស
 @dp.callback_query(F.data == "select_plan")
 async def callback_select_plan(callback: types.CallbackQuery):
     text = (
@@ -134,7 +223,6 @@ async def callback_select_plan(callback: types.CallbackQuery):
             pass
     await callback.answer()
 
-# ពេលអតិថិជនជ្រើសរើសកញ្ចប់ណាមួយ បង្ហាញ QR Code និងតម្លៃ
 async def show_qr_for_plan(callback: types.CallbackQuery, plan_name: str, price: str, qr_filename: str = QR_PATH):
     caption_text = (
         f"💳 <b>អ្នកបានជ្រើសរើស: {plan_name} (តម្លៃ: {price})</b>\n\n"
@@ -175,16 +263,17 @@ async def plan_3(callback: types.CallbackQuery):
 async def callback_back(callback: types.CallbackQuery):
     user_name = callback.from_user.full_name or "អតិថិជន"
     builder = InlineKeyboardBuilder()
+    builder.button(text="🎁 ទទួលសាកល្បងឥតគិតថ្លៃ ២សប្តាហ៍", callback_data="claim_free_trial")
     builder.button(text="ℹ️ អំពីពួកយើង", callback_data="about_us")
     builder.button(text="💎 ជ្រើសរើសកញ្ចប់ VIP", callback_data="select_plan")
     builder.button(text="📞 ទំនាក់ទំនងផ្ទាល់", url=ADMIN_CONTACT)
     builder.adjust(1)
     
     text = (
-        f"👋 សូមស្វាគមន៍ <b>{user_name}</b>!\n\n"
+        f"👋 សូមស្វាគមន៍ <b>{user_name}</b> មកកាន់ប្រព័ន្ធ VIP របស់យើង!\n\n"
         f"🌟 <b>Ai Legend VIP</b>\n"
         f"────────────────────────\n"
-        f"សូមជ្រើសរើសមុខងារដែលអ្នកចង់ប្រើ៖"
+        f"🎁 <b>ពិសេស!</b> សម្រាប់សមាជិកចាស់និងថ្មី អាចចុចទទួលសិទ្ធិសាកល្បងមើលរឿងដោយឥតគិតថ្លៃរយៈពេល <b>២សប្តាហ៍ (១៤ថ្ងៃ)</b> ភ្លាមៗនៅខាងក្រោម៖"
     )
     try:
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
@@ -196,7 +285,6 @@ async def callback_back(callback: types.CallbackQuery):
             pass
     await callback.answer()
 
-# ទទួលរូបភាពបង្កាន់ដៃ និងកំណត់កញ្ចប់តាមរយៈ Caption របស់ Admin Group
 @dp.message(F.photo)
 async def handle_receipt(message: types.Message):
     user_id = message.from_user.id
@@ -249,7 +337,7 @@ async def handle_receipt(message: types.Message):
 @dp.callback_query(F.data.startswith("approve_"))
 async def admin_approve(callback: types.CallbackQuery):
     parts = callback.data.split("_")
-    approval_type = parts[1] # 'h' (hours) or 'd' (days)
+    approval_type = parts[1]
     user_id = int(parts[2])
     val = int(parts[3])
     
@@ -310,7 +398,7 @@ async def admin_reject(callback: types.CallbackQuery):
         logging.error(f"Error in admin_reject: {e}")
         await callback.answer(f"មានកំហុសឆ្គង: {e}", show_alert=True)
 
-# --- BACKGROUND CRON JOB: ពិនិត្យសមាជិកផុតកំណត់រៀងរាល់ម៉ោង ---
+# --- BACKGROUND CRON JOB: ពិនិត្យសមាជិកផុតកំណត់រៀងរាល់ ១៥នាទីម្តង ---
 async def check_subscriptions_expiry():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -364,7 +452,7 @@ async def main():
     scheduler.add_job(check_subscriptions_expiry, "interval", minutes=15)
     scheduler.start()
     
-    logging.info("Bot with Updated About Us is starting...")
+    logging.info("Bot with Free Trial (2 Weeks) is starting...")
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
