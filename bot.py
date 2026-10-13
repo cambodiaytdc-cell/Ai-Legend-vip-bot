@@ -10,6 +10,7 @@ from aiogram.types import FSInputFile
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from aiohttp import web
 
 # កំណត់ Logging
 logging.basicConfig(level=logging.INFO)
@@ -245,7 +246,6 @@ async def handle_receipt(message: types.Message):
         logging.error(f"Error sending receipt: {e}")
         await message.answer("❌ មានបញ្ហាក្នុងការបញ្ជូនបង្កាន់ដៃទៅកាន់ Admin!")
 
-# នៅពេល Admin ចុចប៊ូតុង អនុម័ត (តាមចំនួនម៉ោង ឬថ្ងៃដែលបានជ្រើសរើស)
 @dp.callback_query(F.data.startswith("approve_"))
 async def admin_approve(callback: types.CallbackQuery):
     parts = callback.data.split("_")
@@ -327,7 +327,7 @@ async def check_subscriptions_expiry():
             await bot.send_message(
                 user_id,
                 "⏰ <b>សមាជិកភាព VIP របស់អ្នកបានផុតកំណត់ហើយ!</b>\n\n"
-                "អ្នកត្រូវបានដកចេញពី Channel VIP ស្វ័យប្រវត្តិ។ ដើម្បីបន្តចូលទស្សនា សូមทำการបង់ប្រាក់ទិញកញ្ចប់ថ្មីតាមរយៈ Bot នេះ។"
+                "អ្នកត្រូវបានដកចេញពី Channel VIP ស្វ័យប្រវត្តិ។ ដើម្បីបន្តចូលទស្សនា សូមធ្វើការបង់ប្រាក់ទិញកញ្ចប់ថ្មីតាមរយៈ Bot នេះ។"
             )
             
             cursor.execute("DELETE FROM subscriptions WHERE user_id = ?", (user_id,))
@@ -338,8 +338,29 @@ async def check_subscriptions_expiry():
             
     conn.close()
 
+# --- WEB SERVER (AIOHTTP) សម្រាប់បំពេញលក្ខខណ្ឌ Port Binding របស់ Render ---
+async def handle(request):
+    return web.Response(text="Bot is running successfully!")
+
+app = web.Application()
+app.add_routes([web.get('/', handle)])
+
+async def start_web_server():
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
 async def main():
     init_db()
+    
+    # ចាប់ផ្តើម Web Server មុនគេដើម្បីបើក Port ឆ្លើយតបជាមួយ Render
+    await start_web_server()
+    
+    # លុប Webhook ចាស់ចោលដើម្បីការពារបញ្ហា Conflict ពេល Polling
+    await bot.delete_webhook(drop_pending_updates=True)
+    
     scheduler.add_job(check_subscriptions_expiry, "interval", minutes=15)
     scheduler.start()
     
