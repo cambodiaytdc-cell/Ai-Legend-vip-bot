@@ -15,7 +15,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 logging.basicConfig(level=logging.INFO)
 
 # កំណត់ Token និង ID ផ្សេងៗនៅទីនេះ
-API_TOKEN = '8708079718:AAH-hCLTUOD_bYWTookvIh4cOJaqMN40iDQ'
+API_TOKEN = '8708079718:AAGWdfzl0cZRUweZsy_Mt891Up2_BwLT61o'
 CHANNEL_ID = '-1003707490949'      # ID របស់ Private Channel VIP របស់អ្នក
 ADMIN_GROUP_ID = '-1003904405834'  # ID របស់ Admin Group សម្រាប់ទទួលបង្កាន់ដៃ
 ADMIN_CONTACT = "https://web.telegram.org/a/#-2074401982012"
