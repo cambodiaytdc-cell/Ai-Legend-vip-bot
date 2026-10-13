@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 API_TOKEN = '8708079718:AAGWdfzl0cZRUweZsy_Mt891Up2_BwLT61o'
 CHANNEL_ID = '-1003707490949'      # ID របស់ Private Channel VIP របស់អ្នក
 ADMIN_GROUP_ID = '-1003904405834'  # ID របស់ Admin Group សម្រាប់ទទួលបង្កាន់ដៃ
-ADMIN_CONTACT = "https://t.me/munnyneak_movie?direct"[cite: 9]
+ADMIN_CONTACT = "https://t.me/munnyneak_movie"
 
 bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
