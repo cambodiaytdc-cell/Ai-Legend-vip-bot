@@ -16,7 +16,7 @@ from aiohttp import web
 logging.basicConfig(level=logging.INFO)
 
 # កំណត់ Token និង ID ផ្សេងៗនៅទីនេះ
-API_TOKEN = '8708079718:AAGWdfzl0cZRUweZsy_Mt891Up2_BwLT61o'
+API_TOKEN = '8708079718:AAG6URHKp5eoF7xlVFLQuTW6VKIBOUOzQoc'
 CHANNEL_ID = '-1003707490949'      # ID របស់ Private Channel VIP របស់អ្នក
 ADMIN_GROUP_ID = '-1003904405834'  # ID របស់ Admin Group សម្រាប់ទទួលបង្កាន់ដៃ
 ADMIN_CONTACT = "https://t.me/munnyneak_movie"
